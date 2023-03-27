@@ -1,0 +1,29 @@
+﻿@page "/"
+
+<PageTitle>Index</PageTitle>
+
+<h1>Hello, world!</h1>
+
+Welcome to your new app.
+
+<SurveyPrompt Title="How is Blazor working for you?" />
+
+<FormGenerator JsonSchemaText="@jsonSchemaText" />
+
+@code {
+    private string jsonSchemaText = @"
+    {
+        ""title"": ""Sample Form"",
+        ""type"": ""object"",
+        ""properties"": {
+            ""name"": {
+                ""type"": ""string"",
+                ""title"": ""Name""
+            },
+            ""age"": {
+                ""type"": ""integer"",
+                ""title"": ""Age""
+            }
+        }
+    }";
+}

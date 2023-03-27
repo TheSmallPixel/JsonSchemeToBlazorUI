@@ -1,0 +1,172 @@
+@using Microsoft.AspNetCore.Components.Forms;
+@using System.Dynamic;
+@inject JsonSchemaService JsonSchemaService
+
+@if (schema != null)
+{
+    <h2>@schema.Title</h2>
+    <EditForm Model="model">
+        @RenderProperties(schema.Properties, schema.Required)
+        <button type="submit" class="btn btn-primary">Submit</button>
+        
+    </EditForm>
+}
+else
+{
+    <p>Loading schema...</p>
+}
+
+@code {
+    [Parameter]
+    public string JsonSchemaText { get; set; }
+
+    private JsonSchema schema;
+
+    private ExpandoObject model = new ExpandoObject();
+
+    protected override void OnInitialized()
+    {
+        schema = JsonSchemaService.LoadSchema(JsonSchemaText);
+    }
+
+    private void UpdateModel(string propertyName, object value)
+    {
+        var modelDictionary = model as IDictionary<string, object>;
+        modelDictionary[propertyName] = value;
+    }
+
+    private void HandleStringValueChanged(string propertyName, string value)
+    {
+        UpdateModel(propertyName, value);
+    }
+
+    private void HandleIntValueChanged(string propertyName, int value)
+    {
+        UpdateModel(propertyName, value);
+    }
+
+    RenderFragment RenderProperties(Dictionary<string, JsonSchemaProperty> properties, List<string> required) => builder =>
+       {
+           int seq = 0;
+           var modelDictionary = model as IDictionary<string, object>;
+           foreach (var property in properties)
+           {
+               var propertyName = property.Key;
+               var propertySchema = property.Value;
+               bool isRequired = required?.Contains(propertyName) ?? false;
+               
+               if (!modelDictionary.ContainsKey(propertyName))
+               {
+                   object defaultValue = null;
+                   switch (propertySchema.Type)
+                   {
+                       case "string":
+                           defaultValue = string.Empty;
+                           break;
+                       case "integer":
+                           defaultValue = 0;
+                           break;
+                       case "object":
+                           defaultValue = new ExpandoObject();
+                           break;
+                           // Add more types as needed
+                   }
+
+                   modelDictionary[propertyName] = defaultValue;
+               }
+
+               builder.OpenElement(++seq, "div");
+               builder.AddAttribute(++seq, "class", "form-group");
+
+               builder.OpenElement(++seq, "label");
+               builder.AddAttribute(++seq, "for", propertyName);
+               builder.AddContent(++seq, propertySchema.Title);
+               builder.CloseElement();
+
+               if (propertySchema.Type == "string")
+               {
+                   if (propertySchema.Enum != null)
+                   {
+                       builder.OpenComponent(++seq, typeof(InputSelect<string>));
+                       builder.AddAttribute(++seq, "id", propertyName);
+                       builder.AddAttribute(++seq, "Value", modelDictionary[propertyName]);
+                       builder.AddAttribute(++seq, "class", "form-control");
+                       builder.AddAttribute(++seq, "ValueExpression", () => modelDictionary[propertyName] as string);
+                       builder.AddAttribute(++seq, "ValueChanged", EventCallback.Factory.Create<string>(this, value => HandleStringValueChanged(propertyName, value)));
+                       builder.CloseComponent();
+
+                       // Add options for enum values
+                       builder.OpenElement(++seq, "option");
+                       builder.AddAttribute(++seq, "value", "");
+                       builder.AddContent(++seq, "Select an option...");
+                       builder.CloseElement();
+
+                       foreach (var enumValue in propertySchema.Enum)
+                       {
+                           builder.OpenElement(++seq, "option");
+                           builder.AddAttribute(++seq, "value", enumValue);
+                           builder.AddContent(++seq, enumValue);
+                           builder.CloseElement();
+                       }
+                   }
+                   else
+                   {
+                       
+                       builder.OpenComponent(++seq, typeof(InputText));
+                       builder.AddAttribute(++seq, "id", propertyName);
+                       builder.AddAttribute(++seq, "Value", modelDictionary[propertyName]);
+                       builder.AddAttribute(++seq, "class", "form-control");
+                       builder.AddAttribute(++seq, "ValueExpression", () => modelDictionary[propertyName] as string);
+                       builder.AddAttribute(++seq, "ValueChanged", EventCallback.Factory.Create<string>(this, value => HandleStringValueChanged(propertyName, value)));
+                       builder.CloseComponent();
+
+                       // Add validation message for the input
+                       builder.OpenComponent(++seq, typeof(ValidationMessage<string>));
+                       builder.AddAttribute(++seq, "For", () => modelDictionary[propertyName]);
+                       builder.CloseComponent();
+                   }
+               }
+               else if (propertySchema.Type == "integer")
+               {
+                   builder.OpenComponent(++seq, typeof(InputNumber<int?>));
+                   builder.AddAttribute(++seq, "id", propertyName);
+                   builder.AddAttribute(++seq, "Value", modelDictionary[propertyName]);
+                   builder.AddAttribute(++seq, "class", "form-control");
+                   builder.AddAttribute(++seq, "ValueExpression", () => modelDictionary[propertyName] as int?);
+                   builder.AddAttribute(++seq, "ValueChanged", EventCallback.Factory.Create<int>(this, value => HandleIntValueChanged(propertyName, value)));
+                   builder.CloseComponent();
+
+                   // Add validation message for the input
+                   builder.OpenComponent(++seq, typeof(ValidationMessage<int>));
+                   builder.AddAttribute(++seq, "For", () => modelDictionary[propertyName]);
+                   builder.CloseComponent();
+               }
+               else if (propertySchema.Type == "object")
+               {
+                   builder.OpenElement(++seq, "div");
+                   builder.AddAttribute(++seq, "class", "border border-secondary p-3");
+
+                   builder.OpenElement(++seq, "h5");
+                   builder.AddContent(++seq, propertySchema.Title);
+                   builder.CloseElement();
+
+                   // Render properties for nested objects
+                   var renderFragment = RenderProperties(propertySchema.Properties, propertySchema.Required);
+                   renderFragment(builder);
+
+                   builder.CloseElement();
+               }
+               // Add more types as needed
+
+               if (isRequired)
+               {
+                   builder.OpenElement(++seq, "span");
+                   builder.AddAttribute(++seq, "class", "text-danger");
+                   builder.AddContent(++seq, "*");
+                   builder.CloseElement();
+               }
+
+               builder.CloseElement(); // Close "form-group" div
+           }
+       };
+}
